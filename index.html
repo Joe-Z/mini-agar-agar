@@ -1,0 +1,344 @@
+<!doctype html>
+
+<html lang=en>
+
+<head>
+    <meta charset=utf-8>
+    <title>AGAR AGAR</title>
+    <meta name="description" content="control the flow">
+    
+    <meta name="author" content="Eberhard Gräther">
+    <meta name="author" content="Thomas Kempf">
+    <meta name="author" content="Sebastian Kienzl">
+    <meta name="author" content="Sebastian Köck">
+    <meta name="author" content="Franz Lanzendorfer">
+    <meta name="author" content="Benjamin Medicke">
+    
+    <link rel="stylesheet" type="text/css" href="./css/style.css" />
+</head>
+<body>
+    <div id="background"></div>
+    <canvas id="canvas">Your browser does not support &lt;canvas&gt;.</canvas>
+    <div id="overlay"></div>
+
+    <div class="rounded item" id="playpause" style="background-image:url(images/pause.png); background-position: 96px 50%; background-repeat:no-repeat;" >
+        AGAR AGAR
+    </div>
+
+    <div class="rounded item" id="menu">
+        <p id="newg">New Game</p>
+		<p id="instr">Instructions</p>
+    </div>
+	
+	<div class="info rounded" id="newgame_dialogue">
+        <div class="close">&nbsp;</div>
+        <h2>Start a new game?</h2>
+        <a href="#" class="rounded" id="startnewgame">YES</a>
+    </div>
+	
+	<div class="info rounded" id="instr_dialogue">
+        <div class="close">&nbsp;</div>
+        <h2>Instructions</h2>
+		<p><b>Click & drag</b> to influence the <b>force-field</b>. The particles will move along the constraints of the force-field.
+		When the particles are close to each other, they will <b>flock together</b>.</p>
+		<p>From time to time bubbles ascend. When they pop, they also influence the force-field.</p>
+    </div>
+    
+    <div class="info rounded" id="error">
+        <h2>ERROR</h2>
+        <p>Your browser does not support WebGL.</p>
+        <a href="http://get.webgl.org" class="rounded button">Get WebGL</a></p>
+    </div>
+
+<script id="vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+
+    uniform mat4 matrix;
+
+    attribute vec3 position;
+    
+    void main(void) {
+    
+       gl_Position = matrix * vec4(position, 1.0);
+       gl_PointSize = 3.0;
+    
+    }
+    
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+    
+    uniform vec4 color;
+    
+    void main(void) {
+    
+       gl_FragColor = color;
+       
+    }
+    
+</script>
+
+<script id="texture-vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+
+    uniform mat4 matrix;
+
+    attribute vec2 position;
+    attribute vec2 textureCoord;
+
+    varying vec2 pointCoord;
+
+    void main(void) {
+
+       gl_Position = matrix * vec4(position, 1.0, 1.0);
+       
+       pointCoord = textureCoord;
+
+    }
+    
+</script>
+
+<script id="texture-fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+    
+    uniform sampler2D texture;
+    uniform vec4 color;
+    
+    varying vec2 pointCoord;
+    
+    void main(void) {
+    
+        vec4 textureColor = texture2D( texture, pointCoord );
+        gl_FragColor = vec4( mix( textureColor.rgb, color.rgb, color.a ), textureColor.a );
+    
+    }
+
+</script>
+
+<script id="stardust-vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+
+    uniform mat4 matrix;
+
+    attribute vec3 position;
+    
+    varying float alpha;
+    
+    void main(void) {
+    
+       gl_Position = matrix * vec4(position.xy, 1.0, 1.0);
+       
+       gl_PointSize = 2.0;
+       
+       alpha = position.z;
+    
+    }
+    
+</script>
+
+<script id="stardust-fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+    
+    uniform vec4 color;
+    
+    varying float alpha;
+    
+    void main(void) {
+    
+       gl_FragColor = vec4(.85, .85, .85, alpha);
+       
+    }
+    
+</script>
+
+<script id="particle-vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+
+    uniform mat4 matrix;
+    uniform float size;
+
+    attribute vec4 position;
+    
+    varying float alpha;
+    varying float time;
+    
+    void main(void) {
+    
+       gl_Position = matrix * vec4(position.xy, 1.0, 1.0);
+       
+       gl_PointSize = size;
+       
+       alpha = position.z;
+       
+       time = position.w;
+    
+    }
+    
+</script>
+
+<script id="particle-fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+    
+    uniform sampler2D texture;
+    
+    varying float alpha;
+    
+    varying float time;
+    
+    const vec2 center = vec2(0.5, 0.5);
+    
+    void main(void) {
+    
+        vec2 point = ( gl_PointCoord - center );
+
+        point *= 1.0 + 0.50 / 12.0 * sin( 2.0 * atan( point.y, point.x ) + time * 5.0 ) +
+                       0.50 / 12.0 * sin( 3.0 * atan( point.y, point.x ) - time * 2.5 );
+
+        gl_FragColor = texture2D( texture, point + center );
+        gl_FragColor.a *= alpha;
+       
+    }
+    
+</script>
+
+<script id="vectorfield-vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+
+    uniform mat4 matrix;
+
+    attribute vec4 position;
+    
+    varying float rotation;
+    
+    void main(void) {
+    
+        gl_Position = matrix * vec4(position.xy, 1.0, 1.0);
+        
+        gl_PointSize = position.z;
+        
+        rotation = -position.w;
+    
+    }
+    
+</script>
+
+<script id="vectorfield-fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+    
+    uniform sampler2D texture;
+    
+    varying float rotation;
+    
+    const vec2 center = vec2( 0.5, 0.5 );
+    
+    void main(void) {
+        
+        vec2 point = gl_PointCoord - center;
+        
+        point = vec2(
+            cos( rotation ) * point.x - sin( rotation ) * point.y,
+            sin( rotation ) * point.x + cos( rotation ) * point.y
+        ) + center;
+        
+        gl_FragColor = texture2D( texture, point );
+        
+    }
+    
+</script>
+
+<script id="entropyfier-vertex-shader" type="x-shader/x-vertex" charset="utf-8">
+    
+    uniform mat4 matrix;
+
+    attribute vec3 position;
+    
+    varying vec2 vPosition;
+
+    void main(void) {
+
+        gl_Position = matrix * vec4( position.xy, 1.0, 1.0 );
+        
+        vPosition = position.xy;
+        
+    }
+    
+</script>
+
+<script id="entropyfier-fragment-shader" type="x-shader/x-fragment" charset="utf-8">
+
+    precision mediump float;
+
+    uniform float lifeTime;
+
+    varying vec2 vPosition;
+    
+    const vec3 borderColor = vec3(0.85, 0.85, 0.85);
+    const vec3 fillColor = vec3(0.95, 0.95, 0.95);
+    
+    const vec3 whiteColor = vec3(1.0, 1.0, 1.0);
+    const vec2 glowCenter = vec2( -0.3, -0.3 );
+    
+    const float outerRadius = 1.0;
+    
+    const float PI = 3.1415926535;
+
+    void main(void) {
+
+        float len = length( vPosition );
+
+        float alphaFactor = clamp( 40.0 - 40.0 * len, 0.0, 1.0);
+
+        // innerRadius from 0.5 to 0.9
+        float innerRadius = clamp( 0.55 + lifeTime / 2.0, 0.5, 0.95);
+        
+        float mixFactor = cos( ( clamp( len, innerRadius, outerRadius ) - innerRadius ) / ( outerRadius - innerRadius ) * 2.0 * PI) * -0.5 + 0.5;
+        
+        mixFactor *= step( innerRadius, len ) * step( len, outerRadius );
+        
+        vec3 color = mix( fillColor, borderColor, mixFactor );
+        
+        // glow
+        color = mix( whiteColor, color, length( vPosition - glowCenter ) * 2.0 );
+        
+        gl_FragColor.rgb = mix( whiteColor, color, lifeTime );
+        gl_FragColor.a = 0.5;
+
+    }
+    
+</script>
+
+<script type="text/javascript" charset="utf-8" src="lib/requestAnimationFrame.js"></script>
+<script type="text/javascript" charset="utf-8" src="lib/Tween.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="lib/Stats.js"></script>
+<script type="text/javascript" charset="utf-8" src="lib/jquery-1.7.1.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Menu.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Timer.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/StateMachine.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/utilities.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Vector.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/Matrix.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/WebGLTexture.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/WebGLShader.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/WebGLUtilities.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Entity.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/Particle.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/Entropyfier.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Stardust.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Vectorfield.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/Inputhandler.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/Controller.js"></script>
+
+<script type="text/javascript" charset="utf-8" src="js/Game.js"></script>
+<script type="text/javascript" charset="utf-8" src="js/main.js"></script>
+
+</body>
+</html>
