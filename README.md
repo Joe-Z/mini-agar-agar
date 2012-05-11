@@ -1,0 +1,2 @@
+Agar Agar is an atmospheric game putting you in the role of a bunch of microorganisms trying to infiltrate other cells.
+This is a simplified version of Agar Agar. It offers the basic unit, the particle, to demonstrate the flow controls.
